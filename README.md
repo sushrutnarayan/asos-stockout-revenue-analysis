@@ -1,167 +1,58 @@
-ASOS Sales Data Analysis
-An exploratory data analysis project that digs into ASOS product data to uncover inventory inefficiencies — specifically where stockouts might be costing the business revenue.
-Core question: Where is ASOS losing revenue due to stock unavailability, and what can be done about it?
- 
-Tech Stack
-•	Python 3
-•	pandas & numpy
-•	matplotlib & seaborn
-•	Jupyter Notebook
- 
-Getting Started
-1. Clone or create the project folder
-mkdir asos-analysis
-cd asos-analysis
-2. Add the dataset
-cp ~/Downloads/asos_sales.csv .
-3. Set up a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-4. Install dependencies
-pip install pandas numpy matplotlib seaborn jupyter ipykernel
-5. Open in VS Code
-code .
-6. Create the notebook
-Create a new file called analysis.ipynb, then select .venv/bin/python as the kernel from the top-right kernel picker.
- 
-Analysis Walkthrough
-Loading the data
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+# ASOS Stockout Revenue Analysis
 
-df = pd.read_csv('asos_sales.csv', on_bad_lines='skip')
-Cleaning prices
-df['price'] = pd.to_numeric(df['price'], errors='coerce')
-df = df.dropna(subset=['price'])
-This converts any malformed price values to NaN and drops rows where price is missing — keeping only clean, usable records.
-Extracting brand names
-The dataset doesn't have a dedicated brand column, so we pull brand names from the product description.
-df['description'] = df['description'].astype(str)
+A data analysis project exploring ASOS product data to identify stockout patterns and estimate potential revenue loss.
 
-def get_brand(text):
-    if 'by ' in text:
-        try:
-            return text.split('by ')[1].split(' ')[0]
-        except:
-            return "Unknown"
-    return "Unknown"
+---
 
-df['brand_raw'] = df['description'].apply(get_brand)
-Some brand names come through truncated, so we map the common ones to their full names:
-brand_map = {
-    'New': 'New Look',
-    'River': 'River Island',
-    'Miss': 'Miss Selfridge',
-    'TopshopWelcome': 'Topshop'
-}
+## Problem
 
-df['Brand'] = df['brand_raw'].map(brand_map).fillna(df['brand_raw'])
-Filtering to meaningful brands
-brand_counts = df['Brand'].value_counts()
-valid_brands = brand_counts[brand_counts > 5].index
-df_clean = df[df['Brand'].isin(valid_brands)].copy()
-This removes one-off or mis-extracted brand names that would skew the analysis.
- 
-Stockout Analysis
-Calculating stockout metrics per product
-def calculate_phantom_revenue(size_str):
-    if not isinstance(size_str, str):
-        return 0, 0.0
+Stockouts (out-of-stock sizes) can lead to missed sales opportunities.
 
-    sizes = size_str.split(',')
-    total_sizes = len(sizes)
-    out_of_stock_count = size_str.count('Out of stock')
-    rate = out_of_stock_count / total_sizes if total_sizes > 0 else 0.0
+This project investigates:
+- Where stockouts are most frequent  
+- Which products and brands are losing revenue  
+- How inventory decisions can be improved  
 
-    return out_of_stock_count, rate
+---
 
-metrics = df_clean['size'].apply(lambda x: calculate_phantom_revenue(x))
+## Approach
 
-df_clean['Stockout_Count'] = [x[0] for x in metrics]
-df_clean['Stockout_Rate'] = [x[1] for x in metrics]
-Estimating lost revenue
-df_clean['Lost_Revenue'] = df_clean['price'] * df_clean['Stockout_Count']
-This is a rough proxy — it assumes each out-of-stock size represents one lost sale at the listed price.
-Top products by lost revenue
-cols = ['Brand', 'name', 'price', 'Stockout_Count', 'Lost_Revenue']
-print(df_clean.sort_values(by='Lost_Revenue', ascending=False).head(5)[cols])
- 
-Brand-Level Strategy Analysis
-brand_strategy = df_clean.groupby('Brand').agg({
-    'price': 'mean',
-    'Stockout_Rate': 'mean',
-    'Lost_Revenue': 'sum',
-    'name': 'count'
-}).reset_index()
+- Cleaned data using pandas  
+- Extracted brand names from product descriptions  
+- Calculated stockout rate per product  
+- Estimated lost revenue  
+- Aggregated insights at brand level  
 
-brand_strategy = brand_strategy[brand_strategy['name'] > 10]
-Visualisation
-plt.figure(figsize=(12, 8))
+---
 
-sns.scatterplot(
-    data=brand_strategy,
-    x='price',
-    y='Stockout_Rate',
-    size='Lost_Revenue',
-    sizes=(50, 500),
-    alpha=0.7
-)
+## Key Insight
 
-winners = brand_strategy[
-    (brand_strategy['price'] > 40) &
-    (brand_strategy['Stockout_Rate'] > 0.4)
-]
+High-priced products with high stockout rates represent the **biggest revenue opportunity** — strong demand but insufficient inventory.
 
-for i in range(len(winners)):
-    plt.text(
-        winners.iloc[i]['price'] + 1,
-        winners.iloc[i]['Stockout_Rate'],
-        winners.iloc[i]['Brand']
-    )
+---
 
-plt.title('Brand Strategy Analysis')
-plt.xlabel('Average Price (£)')
-plt.ylabel('Stockout Rate')
-plt.axvline(x=40, color='red', linestyle='--')
-plt.axhline(y=0.4, color='red', linestyle='--')
-plt.show()
-The red lines divide brands into four quadrants:
- 
+## Visualization
 
-Quadrant	Price	Stockout Rate	What it means
-Top right	High	High	High demand, premium products — biggest restock opportunity
-Top left	Low	High	Fast-moving items — worth scaling inventory
-Bottom right	High	Low	Slow sellers — consider discounting or clearance
-Bottom left	Low	Low	Low priority — keep minimal stock
- 
-Key Takeaways
-•	High-price, high-stockout brands are the clearest opportunity — they're in demand and running out of sizes.
-•	Fast-moving, lower-price items may benefit from bulk restocking.
-•	Expensive slow sellers are tying up capital and worth reviewing for markdowns.
-•	Size availability is a measurable, actionable metric that directly affects conversion.
- 
-Recommendations
-•	Prioritise inventory allocation for premium brands with high stockout rates.
-•	Shift budget away from segments with low demand and high carry cost.
-•	Use stockout rate as a regular KPI alongside revenue tracking.
- 
-Project Structure
-asos-analysis/
-├── analysis.ipynb       # Main notebook
-├── asos_sales.csv       # Raw data (not committed to version control)
-├── README.md
-├── requirements.txt
-└── .gitignore
- 
-What's Next
-•	Add time-series analysis to track how stockout rates change across seasons
-•	Build a predictive model for restock timing
-•	Automate reporting with a scheduled pipeline
-•	Explore integration with a live dashboard tool
- 
-Author
+![Brand Strategy](images/plot.png)
 
+---
+
+## Tech Stack
+
+- Python  
+- pandas, numpy  
+- matplotlib, seaborn  
+- Jupyter Notebook  
+
+---
+
+## How to Run
+
+```bash
+pip install -r requirements.txt
+jupyter notebook
+
+
+## Author
 Sushrut Narayan Singh
-GitHub: https://github.com/sushrutnarayan
-
+https://github.com/sushrutnarayan
