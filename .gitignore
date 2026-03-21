@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Storeproducts_asos.csv
+products_asos.csv
+products_asos.csv
